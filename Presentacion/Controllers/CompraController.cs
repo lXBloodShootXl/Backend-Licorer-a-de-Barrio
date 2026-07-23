@@ -21,6 +21,103 @@ namespace LICORERIA.Presentacion.Controllers
         }
 
         /// <summary>
+        /// US-26: Consulta el historial de compras realizadas.
+        /// Permite filtrar por rango de fechas o por nombre de proveedor.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetCompras(
+            DateTime? fechaInicio,
+            DateTime? fechaFin,
+            string? proveedor)
+        {
+            var consulta = _context.Compras
+                .Include(c => c.Detalles)
+                    .ThenInclude(d => d.Producto)
+                .AsQueryable();
+
+            if (fechaInicio.HasValue)
+            {
+                consulta = consulta.Where(c =>
+                    c.Fecha.Date >= fechaInicio.Value.Date);
+            }
+
+            if (fechaFin.HasValue)
+            {
+                consulta = consulta.Where(c =>
+                    c.Fecha.Date <= fechaFin.Value.Date);
+            }
+
+            if (!string.IsNullOrWhiteSpace(proveedor))
+            {
+                consulta = consulta.Where(c =>
+                    c.NombreProveedor.ToLower()
+                     .Contains(proveedor.ToLower()));
+            }
+
+            var compras = await consulta
+                .OrderByDescending(c => c.Fecha)
+                .Select(c => new
+                {
+                    c.IdCompra,
+                    fecha          = c.Fecha,
+                    proveedor      = c.NombreProveedor,
+                    total          = c.Total,
+                    totalProductos = c.Detalles.Sum(d => d.Cantidad),
+                    detalles = c.Detalles.Select(d => new
+                    {
+                        d.IdProducto,
+                        producto      = d.Producto.Nombre,
+                        d.Cantidad,
+                        d.CostoUnitario,
+                        d.Subtotal
+                    })
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                totalCompras = compras.Count,
+                totalInvertido = compras.Sum(c => c.total),
+                compras
+            });
+        }
+
+
+        /// <summary>
+        /// US-26: Consulta el detalle de una compra específica por su ID.
+        /// </summary>
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetCompra(int id)
+        {
+            var compra = await _context.Compras
+                .Include(c => c.Detalles)
+                    .ThenInclude(d => d.Producto)
+                .FirstOrDefaultAsync(c => c.IdCompra == id);
+
+            if (compra == null)
+            {
+                return NotFound("Compra no encontrada.");
+            }
+
+            return Ok(new
+            {
+                compra.IdCompra,
+                fecha     = compra.Fecha,
+                proveedor = compra.NombreProveedor,
+                total     = compra.Total,
+                detalles  = compra.Detalles.Select(d => new
+                {
+                    d.IdProducto,
+                    producto      = d.Producto.Nombre,
+                    d.Cantidad,
+                    d.CostoUnitario,
+                    d.Subtotal
+                })
+            });
+        }
+
+
+        /// <summary>
         /// US-24: Registra una compra a proveedor.
         /// </summary>
         [HttpPost]
@@ -36,7 +133,7 @@ namespace LICORERIA.Presentacion.Controllers
                 return BadRequest("La compra debe incluir al menos un producto.");
             }
 
-            // Validar que los productos existan y tengan precios razonables
+
             var idsProductos = request.Productos.Select(p => p.IdProducto).ToList();
             var productosDb = await _context.Productos
                 .Where(p => idsProductos.Contains(p.IdProducto))
@@ -62,7 +159,7 @@ namespace LICORERIA.Presentacion.Controllers
             }
             int idUsuario = int.Parse(usuarioClaim.Value);
 
-            // Iniciar transacción
+
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -88,11 +185,9 @@ namespace LICORERIA.Presentacion.Controllers
                         Subtotal = subtotal
                     });
 
-                    // US-25: Actualizar stock
                     var productoDb = productosDb.First(p => p.IdProducto == item.IdProducto);
                     productoDb.StockActual += item.Cantidad;
 
-                    // US-25: Registrar movimiento de inventario
                     _context.MovimientosInventario.Add(new MovimientoInventario
                     {
                         IdProducto = item.IdProducto,
