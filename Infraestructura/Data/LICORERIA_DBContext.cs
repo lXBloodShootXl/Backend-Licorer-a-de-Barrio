@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using LICORERIA.Core.Models;
 
 namespace LICORERIA.Infraestructura.Data
@@ -16,11 +16,25 @@ namespace LICORERIA.Infraestructura.Data
         public DbSet<DetalleVenta> DetallesVenta { get; set; }
 
         public DbSet<MovimientoInventario> MovimientosInventario { get; set; }
+        
+        public DbSet<Compra> Compras { get; set; }
+        public DbSet<DetalleCompra> DetallesCompra { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder)
         {
 
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<DetalleCompra>()
+                .HasOne(x => x.Compra)
+                .WithMany(x => x.Detalles)
+                .HasForeignKey(x => x.IdCompra);
+
+            modelBuilder.Entity<DetalleCompra>()
+                .HasOne(x => x.Producto)
+                .WithMany()
+                .HasForeignKey(x => x.IdProducto);
 
 
             modelBuilder.Entity<DetalleVenta>()
