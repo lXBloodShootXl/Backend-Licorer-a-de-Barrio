@@ -1,4 +1,4 @@
-﻿using LICORERIA.Core.DTOs;
+using LICORERIA.Core.DTOs;
 using LICORERIA.Core.Models;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -273,6 +273,61 @@ namespace LICORERIA.Presentacion.Controllers
             return Ok(new
             {
                 mensaje = "Producto desactivado correctamente."
+            });
+        }
+
+
+        /// <summary>
+        /// US-16: Alerta de stock mínimo.
+        /// Devuelve los productos activos cuyo stock actual
+        /// sea menor o igual a su stock mínimo establecido.
+        /// </summary>
+        [HttpGet("Alertas")]
+        public async Task<IActionResult> GetAlertasStockMinimo()
+        {
+            var productosEnAlerta =
+                await _context.Productos
+                .Where(p =>
+                    p.Activo &&
+                    p.StockActual <= p.StockMinimo)
+                .Select(p => new
+                {
+                    p.IdProducto,
+                    p.Nombre,
+                    p.Categoria,
+                    p.CodigoBarras,
+                    p.StockActual,
+                    p.StockMinimo,
+                    p.PrecioCompra,
+                    p.PrecioVenta,
+
+                    Estado =
+                        p.StockActual == 0
+                            ? "Agotado"
+                            : "Stock Bajo"
+                })
+                .OrderBy(p => p.StockActual)
+                .ToListAsync();
+
+
+            if (!productosEnAlerta.Any())
+            {
+                return Ok(new
+                {
+                    mensaje =
+                        "Todos los productos tienen stock suficiente.",
+                    totalEnAlerta = 0,
+                    productos = productosEnAlerta
+                });
+            }
+
+
+            return Ok(new
+            {
+                mensaje =
+                    $"{productosEnAlerta.Count} producto(s) requieren reabastecimiento.",
+                totalEnAlerta = productosEnAlerta.Count,
+                productos = productosEnAlerta
             });
         }
     }
