@@ -306,6 +306,65 @@ namespace LICORERIA.Presentacion.Controllers
 
 
         /// <summary>
+        /// US-19: Registra o actualiza el código de barras
+        /// de un producto existente.
+        /// </summary>
+        [HttpPatch("{id}/CodigoBarras")]
+        public async Task<IActionResult> ActualizarCodigoBarras(
+            int id,
+            ActualizarCodigoBarrasDTO dto)
+        {
+
+            var producto =
+                await _context.Productos
+                .FirstOrDefaultAsync(
+                    x => x.IdProducto == id && x.Activo);
+
+
+            if (producto == null)
+            {
+                return NotFound(
+                    "Producto no encontrado o está inactivo.");
+            }
+
+
+            // Validar unicidad del código de barras
+            if (!string.IsNullOrWhiteSpace(dto.CodigoBarras))
+            {
+                bool yaExiste =
+                    await _context.Productos
+                    .AnyAsync(x =>
+                        x.CodigoBarras == dto.CodigoBarras &&
+                        x.IdProducto   != id);
+
+
+                if (yaExiste)
+                {
+                    return BadRequest(
+                        "Ya existe otro producto con ese" +
+                        " código de barras.");
+                }
+            }
+
+
+            producto.CodigoBarras = dto.CodigoBarras;
+
+
+            await _context.SaveChangesAsync();
+
+
+            return Ok(new
+            {
+                mensaje       =
+                    "Código de barras actualizado correctamente.",
+                idProducto    = producto.IdProducto,
+                nombre        = producto.Nombre,
+                codigoBarras  = producto.CodigoBarras
+            });
+        }
+
+
+        /// <summary>
         /// Desactiva un producto.
         /// </summary>
         [HttpDelete("{id}")]
