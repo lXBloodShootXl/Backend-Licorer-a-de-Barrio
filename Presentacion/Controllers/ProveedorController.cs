@@ -113,6 +113,51 @@ namespace LICORERIA.Presentacion.Controllers
         }
 
         /// <summary>
+        /// US-31: Busca proveedores activos por nombre o teléfono.
+        /// Se debe enviar al menos uno de los dos parámetros.
+        /// </summary>
+        [HttpGet("Buscar")]
+        public async Task<IActionResult> BuscarProveedores(
+            string? nombre,
+            string? telefono)
+        {
+            if (string.IsNullOrWhiteSpace(nombre) &&
+                string.IsNullOrWhiteSpace(telefono))
+            {
+                return BadRequest(
+                    "Debe proporcionar un nombre o un teléfono para buscar.");
+            }
+
+            var consulta = _context.Proveedores
+                .Where(p => p.Activo)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(nombre))
+            {
+                consulta = consulta.Where(p =>
+                    p.Nombre.ToLower().Contains(nombre.ToLower()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(telefono))
+            {
+                consulta = consulta.Where(p =>
+                    p.Telefono.Contains(telefono));
+            }
+
+            var proveedores = await consulta
+                .OrderBy(p => p.Nombre)
+                .ToListAsync();
+
+            if (!proveedores.Any())
+            {
+                return NotFound(
+                    "No se encontró ningún proveedor activo con ese criterio.");
+            }
+
+            return Ok(proveedores);
+        }
+
+        /// <summary>
         /// Elimina lógicamente un proveedor.
         /// </summary>
         [HttpDelete("{id}")]
