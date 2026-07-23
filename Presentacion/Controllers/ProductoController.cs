@@ -1,4 +1,4 @@
-﻿using LICORERIA.Core.DTOs;
+using LICORERIA.Core.DTOs;
 using LICORERIA.Core.Models;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -131,11 +131,11 @@ namespace LICORERIA.Presentacion.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProductos()
         {
-            var productos =
-                await _context.Productos
+            var productos = await _context.Productos
+                .AsNoTracking()
                 .Where(x => x.Activo)
+                .OrderBy(x => x.Nombre)
                 .ToListAsync();
-
 
             return Ok(productos);
         }
@@ -145,11 +145,11 @@ namespace LICORERIA.Presentacion.Controllers
         [HttpGet("Desactivados")]
         public async Task<IActionResult> GetProductosDesactivados()
         {
-            var productos =
-                await _context.Productos
+            var productos = await _context.Productos
+                .AsNoTracking()
                 .Where(x => !x.Activo)
+                .OrderBy(x => x.Nombre)
                 .ToListAsync();
-
 
             return Ok(productos);
         }
@@ -158,21 +158,15 @@ namespace LICORERIA.Presentacion.Controllers
         /// Consulta producto por id.
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetProducto(
-            int id)
+        public async Task<IActionResult> GetProducto(int id)
         {
-
-            var producto =
-                await _context.Productos
-                .FirstOrDefaultAsync(
-                    x => x.IdProducto == id);
-
-
+            var producto = await _context.Productos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.IdProducto == id);
 
             if (producto == null)
             {
-                return NotFound(
-                    "Producto no encontrado.");
+                return NotFound("Producto no encontrado.");
             }
 
             return Ok(producto);
@@ -188,6 +182,7 @@ namespace LICORERIA.Presentacion.Controllers
             string? codigoBarras)
         {
             var consulta = _context.Productos
+                .AsNoTracking()
                 .Where(x => x.Activo)
                 .AsQueryable();
 
@@ -209,7 +204,9 @@ namespace LICORERIA.Presentacion.Controllers
                     x.CodigoBarras == codigoBarras);
             }
 
-            var productos = await consulta.ToListAsync();
+            var productos = await consulta
+                .OrderBy(x => x.Nombre)
+                .ToListAsync();
 
             return Ok(productos);
         }
@@ -248,6 +245,123 @@ namespace LICORERIA.Presentacion.Controllers
         }
 
         /// <summary>
+        /// US-17: Actualiza únicamente los precios de compra
+        /// y venta de un producto.
+        /// </summary>
+        [HttpPatch("{id}/Precios")]
+        public async Task<IActionResult> ActualizarPrecios(
+            int id,
+            ActualizarPreciosDTO dto)
+        {
+
+            if (dto.PrecioCompra <= 0 ||
+                dto.PrecioVenta <= 0)
+            {
+                return BadRequest(
+                    "Los precios deben ser mayores a cero.");
+            }
+
+
+            if (dto.PrecioVenta < dto.PrecioCompra)
+            {
+                return BadRequest(
+                    "El precio de venta no puede ser menor" +
+                    " al precio de compra.");
+            }
+
+
+            var producto =
+                await _context.Productos
+                .FirstOrDefaultAsync(
+                    x => x.IdProducto == id && x.Activo);
+
+
+            if (producto == null)
+            {
+                return NotFound(
+                    "Producto no encontrado o está inactivo.");
+            }
+
+
+            producto.PrecioCompra = dto.PrecioCompra;
+            producto.PrecioVenta  = dto.PrecioVenta;
+
+
+            await _context.SaveChangesAsync();
+
+
+            return Ok(new
+            {
+                mensaje =
+                    "Precios actualizados correctamente.",
+                idProducto   = producto.IdProducto,
+                nombre       = producto.Nombre,
+                precioCompra = producto.PrecioCompra,
+                precioVenta  = producto.PrecioVenta
+            });
+        }
+
+
+        /// <summary>
+        /// US-19: Registra o actualiza el código de barras
+        /// de un producto existente.
+        /// </summary>
+        [HttpPatch("{id}/CodigoBarras")]
+        public async Task<IActionResult> ActualizarCodigoBarras(
+            int id,
+            ActualizarCodigoBarrasDTO dto)
+        {
+
+            var producto =
+                await _context.Productos
+                .FirstOrDefaultAsync(
+                    x => x.IdProducto == id && x.Activo);
+
+
+            if (producto == null)
+            {
+                return NotFound(
+                    "Producto no encontrado o está inactivo.");
+            }
+
+
+            // Validar unicidad del código de barras
+            if (!string.IsNullOrWhiteSpace(dto.CodigoBarras))
+            {
+                bool yaExiste =
+                    await _context.Productos
+                    .AnyAsync(x =>
+                        x.CodigoBarras == dto.CodigoBarras &&
+                        x.IdProducto   != id);
+
+
+                if (yaExiste)
+                {
+                    return BadRequest(
+                        "Ya existe otro producto con ese" +
+                        " código de barras.");
+                }
+            }
+
+
+            producto.CodigoBarras = dto.CodigoBarras;
+
+
+            await _context.SaveChangesAsync();
+
+
+            return Ok(new
+            {
+                mensaje       =
+                    "Código de barras actualizado correctamente.",
+                idProducto    = producto.IdProducto,
+                nombre        = producto.Nombre,
+                codigoBarras  = producto.CodigoBarras
+            });
+        }
+
+
+        /// <summary>
         /// Desactiva un producto.
         /// </summary>
         [HttpDelete("{id}")]
@@ -273,6 +387,56 @@ namespace LICORERIA.Presentacion.Controllers
             return Ok(new
             {
                 mensaje = "Producto desactivado correctamente."
+            });
+        }
+
+
+        /// <summary>
+        /// US-16: Alerta de stock mínimo.
+        /// Devuelve los productos activos cuyo stock actual
+        /// sea menor o igual a su stock mínimo establecido.
+        /// </summary>
+        [HttpGet("Alertas")]
+        public async Task<IActionResult> GetAlertasStockMinimo()
+        {
+            var productosEnAlerta = await _context.Productos
+                .AsNoTracking()
+                .Where(p =>
+                    p.Activo &&
+                    p.StockActual <= p.StockMinimo)
+                .OrderBy(p => p.StockActual)
+                .Select(p => new
+                {
+                    p.IdProducto,
+                    p.Nombre,
+                    p.Categoria,
+                    p.CodigoBarras,
+                    p.StockActual,
+                    p.StockMinimo,
+                    p.PrecioCompra,
+                    p.PrecioVenta,
+
+                    Estado = p.StockActual == 0
+                        ? "Agotado"
+                        : "Stock Bajo"
+                })
+                .ToListAsync();
+
+            if (!productosEnAlerta.Any())
+            {
+                return Ok(new
+                {
+                    mensaje = "Todos los productos tienen stock suficiente.",
+                    totalEnAlerta = 0,
+                    productos = productosEnAlerta
+                });
+            }
+
+            return Ok(new
+            {
+                mensaje = $"{productosEnAlerta.Count} producto(s) requieren reabastecimiento.",
+                totalEnAlerta = productosEnAlerta.Count,
+                productos = productosEnAlerta
             });
         }
     }

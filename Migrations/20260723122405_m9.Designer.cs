@@ -3,6 +3,7 @@ using System;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace RRHH.Migrations
 {
     [DbContext(typeof(LICORERIA_DBContext))]
-    partial class LICORERIA_DBContextModelSnapshot : ModelSnapshot
+    [Migration("20260723122405_m9")]
+    partial class m9
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,39 +24,6 @@ namespace RRHH.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("LICORERIA.Core.Models.Auditoria", b =>
-                {
-                    b.Property<int>("IdAuditoria")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdAuditoria"));
-
-                    b.Property<string>("Accion")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("date");
-
-                    b.Property<int>("IdUsuario")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Registro")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Tabla")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("IdAuditoria");
-
-                    b.HasIndex("IdUsuario");
-
-                    b.ToTable("Auditorias");
-                });
 
             modelBuilder.Entity("LICORERIA.Core.Models.Compra", b =>
                 {
@@ -317,17 +287,6 @@ namespace RRHH.Migrations
                     b.HasIndex("IdUsuario");
 
                     b.ToTable("Ventas");
-                });
-
-            modelBuilder.Entity("LICORERIA.Core.Models.Auditoria", b =>
-                {
-                    b.HasOne("LICORERIA.Core.Models.Usuario", "Usuario")
-                        .WithMany()
-                        .HasForeignKey("IdUsuario")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("LICORERIA.Core.Models.DetalleCompra", b =>

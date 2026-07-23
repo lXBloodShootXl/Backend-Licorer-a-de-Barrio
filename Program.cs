@@ -1,3 +1,4 @@
+using LICORERIA.Core.Services;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -101,7 +102,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpContextAccessor();
 
+builder.Services.AddScoped<UsuarioActualService>();
 
 builder.Services.AddSwaggerGen(options =>
 {
