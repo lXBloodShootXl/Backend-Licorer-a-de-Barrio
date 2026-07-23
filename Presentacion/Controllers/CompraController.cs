@@ -55,7 +55,14 @@ namespace LICORERIA.Presentacion.Controllers
                     return BadRequest($"El costo para el producto {item.IdProducto} debe ser mayor a 0.");
             }
 
-            // Iniciar transacción (aunque no estamos actualizando stock ahora, es buena práctica)
+            var usuarioClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (usuarioClaim == null)
+            {
+                return Unauthorized("Usuario no autenticado.");
+            }
+            int idUsuario = int.Parse(usuarioClaim.Value);
+
+            // Iniciar transacción
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -79,6 +86,21 @@ namespace LICORERIA.Presentacion.Controllers
                         Cantidad = item.Cantidad,
                         CostoUnitario = item.CostoUnitario,
                         Subtotal = subtotal
+                    });
+
+                    // US-25: Actualizar stock
+                    var productoDb = productosDb.First(p => p.IdProducto == item.IdProducto);
+                    productoDb.StockActual += item.Cantidad;
+
+                    // US-25: Registrar movimiento de inventario
+                    _context.MovimientosInventario.Add(new MovimientoInventario
+                    {
+                        IdProducto = item.IdProducto,
+                        IdUsuario = idUsuario,
+                        Cantidad = item.Cantidad,
+                        TipoMovimiento = "ENTRADA",
+                        Fecha = DateTime.Now,
+                        Observacion = $"Compra a proveedor: {request.NombreProveedor}"
                     });
                 }
 
