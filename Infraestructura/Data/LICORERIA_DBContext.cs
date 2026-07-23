@@ -19,6 +19,8 @@ namespace LICORERIA.Infraestructura.Data
         
         public DbSet<Compra> Compras { get; set; }
         public DbSet<DetalleCompra> DetallesCompra { get; set; }
+        
+        public DbSet<Proveedor> Proveedores { get; set; }
 
         protected override void OnModelCreating(
             ModelBuilder modelBuilder)

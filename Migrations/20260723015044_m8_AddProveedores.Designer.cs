@@ -3,6 +3,7 @@ using System;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace RRHH.Migrations
 {
     [DbContext(typeof(LICORERIA_DBContext))]
-    partial class LICORERIA_DBContextModelSnapshot : ModelSnapshot
+    [Migration("20260723015044_m8_AddProveedores")]
+    partial class m8_AddProveedores
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
