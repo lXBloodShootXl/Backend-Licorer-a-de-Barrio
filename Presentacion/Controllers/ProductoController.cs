@@ -248,6 +248,64 @@ namespace LICORERIA.Presentacion.Controllers
         }
 
         /// <summary>
+        /// US-17: Actualiza únicamente los precios de compra
+        /// y venta de un producto.
+        /// </summary>
+        [HttpPatch("{id}/Precios")]
+        public async Task<IActionResult> ActualizarPrecios(
+            int id,
+            ActualizarPreciosDTO dto)
+        {
+
+            if (dto.PrecioCompra <= 0 ||
+                dto.PrecioVenta <= 0)
+            {
+                return BadRequest(
+                    "Los precios deben ser mayores a cero.");
+            }
+
+
+            if (dto.PrecioVenta < dto.PrecioCompra)
+            {
+                return BadRequest(
+                    "El precio de venta no puede ser menor" +
+                    " al precio de compra.");
+            }
+
+
+            var producto =
+                await _context.Productos
+                .FirstOrDefaultAsync(
+                    x => x.IdProducto == id && x.Activo);
+
+
+            if (producto == null)
+            {
+                return NotFound(
+                    "Producto no encontrado o está inactivo.");
+            }
+
+
+            producto.PrecioCompra = dto.PrecioCompra;
+            producto.PrecioVenta  = dto.PrecioVenta;
+
+
+            await _context.SaveChangesAsync();
+
+
+            return Ok(new
+            {
+                mensaje =
+                    "Precios actualizados correctamente.",
+                idProducto   = producto.IdProducto,
+                nombre       = producto.Nombre,
+                precioCompra = producto.PrecioCompra,
+                precioVenta  = producto.PrecioVenta
+            });
+        }
+
+
+        /// <summary>
         /// Desactiva un producto.
         /// </summary>
         [HttpDelete("{id}")]
