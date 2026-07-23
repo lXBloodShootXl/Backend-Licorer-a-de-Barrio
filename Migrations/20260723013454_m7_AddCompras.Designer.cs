@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace RRHH.Infraestructura.Data.Migrations
+namespace RRHH.Migrations
 {
     [DbContext(typeof(LICORERIA_DBContext))]
-    [Migration("20260723012524_AddCompras")]
-    partial class AddCompras
+    [Migration("20260723013454_m7_AddCompras")]
+    partial class m7_AddCompras
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
