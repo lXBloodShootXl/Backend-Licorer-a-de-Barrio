@@ -1,4 +1,4 @@
-﻿using LICORERIA.Core.DTOs;
+using LICORERIA.Core.DTOs;
 using LICORERIA.Core.Models;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Authorization;
@@ -268,6 +268,56 @@ namespace LICORERIA.Presentacion.Controllers
 
 
             return Ok(ventas);
+        }
+
+
+        /// <summary>
+        /// US-18: Consulta el detalle de una venta con el
+        /// subtotal de cada producto y el total de la venta.
+        /// </summary>
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetVenta(int id)
+        {
+
+            var venta =
+                await _context.Ventas
+                .Include(v => v.Detalles)
+                    .ThenInclude(d => d.Producto)
+                .Include(v => v.Usuario)
+                .FirstOrDefaultAsync(
+                    v => v.IdVenta == id);
+
+
+            if (venta == null)
+            {
+                return NotFound(
+                    "Venta no encontrada.");
+            }
+
+
+            return Ok(new
+            {
+                idVenta  = venta.IdVenta,
+                fecha    = venta.Fecha,
+                hora     = venta.Hora,
+                usuario  = venta.Usuario.Nombre,
+
+                // US-18: Desglose de subtotales por producto
+                productos = venta.Detalles.Select(d => new
+                {
+                    idProducto     = d.IdProducto,
+                    nombreProducto = d.Producto.Nombre,
+                    cantidad       = d.Cantidad,
+                    precioUnitario = d.PrecioUnitario,
+
+                    // Subtotal calculado automáticamente
+                    subtotal       = d.Subtotal
+                }),
+
+                // US-18: Total calculado automáticamente
+                total    = venta.Total,
+                ganancia = venta.Ganancia
+            });
         }
     }
 }
