@@ -319,5 +319,73 @@ namespace LICORERIA.Presentacion.Controllers
                 ganancia = venta.Ganancia
             });
         }
+
+
+        /// <summary>
+        /// US-20: Busca un producto por código de barras
+        /// o por nombre para agilizar el registro de ventas.
+        /// Se debe enviar al menos uno de los dos parámetros.
+        /// </summary>
+        [HttpGet("BuscarProducto")]
+        public async Task<IActionResult> BuscarProductoParaVenta(
+            string? codigoBarras,
+            string? nombre)
+        {
+
+            if (string.IsNullOrWhiteSpace(codigoBarras) &&
+                string.IsNullOrWhiteSpace(nombre))
+            {
+                return BadRequest(
+                    "Debe proporcionar un código de barras" +
+                    " o un nombre para buscar.");
+            }
+
+
+            var consulta = _context.Productos
+                .Where(p => p.Activo)
+                .AsQueryable();
+
+
+            // Búsqueda por código de barras (exacta)
+            if (!string.IsNullOrWhiteSpace(codigoBarras))
+            {
+                consulta = consulta.Where(p =>
+                    p.CodigoBarras == codigoBarras);
+            }
+            // Búsqueda por nombre (parcial)
+            else if (!string.IsNullOrWhiteSpace(nombre))
+            {
+                consulta = consulta.Where(p =>
+                    p.Nombre.Contains(nombre));
+            }
+
+
+            var productos = await consulta
+                .Select(p => new
+                {
+                    p.IdProducto,
+                    p.Nombre,
+                    p.Categoria,
+                    p.CodigoBarras,
+                    p.PrecioVenta,
+                    p.StockActual,
+
+                    // Indica si hay stock para vender
+                    disponible = p.StockActual > 0
+                })
+                .OrderBy(p => p.Nombre)
+                .ToListAsync();
+
+
+            if (!productos.Any())
+            {
+                return NotFound(
+                    "No se encontró ningún producto activo" +
+                    " con ese criterio de búsqueda.");
+            }
+
+
+            return Ok(productos);
+        }
     }
 }
