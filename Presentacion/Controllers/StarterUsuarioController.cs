@@ -1,4 +1,4 @@
-﻿using LICORERIA.Core.Models;
+using LICORERIA.Core.Models;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
