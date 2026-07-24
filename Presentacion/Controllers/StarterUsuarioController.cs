@@ -20,20 +20,10 @@ namespace LICORERIA.Presentacion.Controllers
             _context = context;
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetUsuario(int id)
+        private async Task<Usuario?> GetUsuario(int id)
         {
-            var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(
-                    u => u.IdUsuario == id);
-
-
-            if (usuario == null)
-                return NotFound(
-                    "Usuario no encontrado.");
-
-
-            return Ok(usuario);
+            return await _context.Usuarios
+                .FirstOrDefaultAsync(u => u.IdUsuario == id);
         }
 
 
