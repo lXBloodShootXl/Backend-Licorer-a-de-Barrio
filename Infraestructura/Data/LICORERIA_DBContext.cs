@@ -96,20 +96,21 @@ namespace LICORERIA.Infraestructura.Data
             //modelBuilder.Entity<Persona>().HasIndex(p => p.hashhuella).IsUnique();
         }
         public override async Task<int> SaveChangesAsync(
-    CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default)
         {
-            var auditorias = new List<Auditoria>();
             var idUsuario = _usuarioActual.ObtenerIdUsuario();
 
             if (idUsuario == null)
             {
                 return await base.SaveChangesAsync(cancellationToken);
             }
+
             var entradas = ChangeTracker.Entries()
                 .Where(e =>
                     e.State == EntityState.Added ||
                     e.State == EntityState.Modified ||
-                    e.State == EntityState.Deleted);
+                    e.State == EntityState.Deleted)
+                .ToList();
 
             foreach (var entry in entradas)
             {
@@ -124,25 +125,26 @@ namespace LICORERIA.Infraestructura.Data
                     _ => ""
                 };
 
-                auditorias.Add(new Auditoria
+                // Se extraen solo las propiedades escalares para evitar referencias circulares en el JSON
+                var valoresEscalares = entry.Properties
+                    .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+
+                var auditoria = new Auditoria
                 {
                     Tabla = entry.Entity.GetType().Name,
-                    Registro = System.Text.Json.JsonSerializer.Serialize(entry.Entity),
+                    Registro = System.Text.Json.JsonSerializer.Serialize(valoresEscalares),
                     Accion = accion,
-                    Fecha = DateTime.Now,
                     IdUsuario = idUsuario.Value
-                });
+                };
+
+                // Uso del método definido en tu modelo de Auditoria
+                auditoria.RegistrarAccion();
+
+                Auditorias.Add(auditoria);
             }
 
-            var resultado = await base.SaveChangesAsync(cancellationToken);
-
-            if (auditorias.Any())
-            {
-                Auditorias.AddRange(auditorias);
-                await base.SaveChangesAsync(cancellationToken);
-            }
-
-            return resultado;
+            // Se guarda todo en una sola transacción optimizada
+            return await base.SaveChangesAsync(cancellationToken);
         }
     }
 }

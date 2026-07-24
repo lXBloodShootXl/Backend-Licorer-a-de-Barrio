@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace RRHH.Migrations
+namespace LICORERIA.Migrations
 {
     [DbContext(typeof(LICORERIA_DBContext))]
-    [Migration("20260723122405_m9")]
-    partial class m9
+    [Migration("20260724220747_m1")]
+    partial class m1
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,39 @@ namespace RRHH.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("LICORERIA.Core.Models.Auditoria", b =>
+                {
+                    b.Property<int>("IdAuditoria")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IdAuditoria"));
+
+                    b.Property<string>("Accion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<int>("IdUsuario")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Registro")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tabla")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("IdAuditoria");
+
+                    b.HasIndex("IdUsuario");
+
+                    b.ToTable("Auditorias");
+                });
 
             modelBuilder.Entity("LICORERIA.Core.Models.Compra", b =>
                 {
@@ -287,6 +320,17 @@ namespace RRHH.Migrations
                     b.HasIndex("IdUsuario");
 
                     b.ToTable("Ventas");
+                });
+
+            modelBuilder.Entity("LICORERIA.Core.Models.Auditoria", b =>
+                {
+                    b.HasOne("LICORERIA.Core.Models.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("IdUsuario")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("LICORERIA.Core.Models.DetalleCompra", b =>

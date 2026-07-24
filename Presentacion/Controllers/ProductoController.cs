@@ -129,15 +129,14 @@ namespace LICORERIA.Presentacion.Controllers
         /// Consulta productos registrados.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetProductos()
+        public async Task<IActionResult> GetProductos([FromQuery] int pagina = 1, [FromQuery] int cantidad = 20)
         {
             var productos = await _context.Productos
-                .AsNoTracking()
-                .Where(x => x.Activo)
-                .OrderBy(x => x.Nombre)
-                .ToListAsync();
-
-            return Ok(productos);
+            .AsNoTracking()
+            .Skip((pagina - 1) * cantidad)
+            .Take(cantidad)
+            .ToListAsync();
+            return Ok(ApiResponse<List<Producto>>.Success(productos, "Productos obtenidos correctamente"));
         }
         /// <summary>
         /// Consulta productos desactivados.

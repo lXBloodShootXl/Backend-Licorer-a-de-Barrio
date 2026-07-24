@@ -1,5 +1,4 @@
-﻿using BCrypt.Net;
-using LICORERIA.Core.DTOs;
+﻿using LICORERIA.Core.DTOs;
 using LICORERIA.Infraestructura.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace RRHH.Migrations
+namespace LICORERIA.Migrations
 {
     [DbContext(typeof(LICORERIA_DBContext))]
     partial class LICORERIA_DBContextModelSnapshot : ModelSnapshot

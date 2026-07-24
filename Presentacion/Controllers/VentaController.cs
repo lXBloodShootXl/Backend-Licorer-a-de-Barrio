@@ -27,183 +27,211 @@ namespace LICORERIA.Presentacion.Controllers
         /// Registra una nueva venta.
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> RegistrarVenta(
-            VentaDTO dto)
+        public async Task<IActionResult> RegistrarVenta(VentaDTO dto)
         {
-
-            if (dto.Productos == null ||
-                !dto.Productos.Any())
+            if (dto.Productos == null || !dto.Productos.Any())
             {
                 return BadRequest(
-                    "Debe agregar productos a la venta.");
+                    ApiResponse<object>.Error("Debe agregar productos a la venta."));
             }
 
 
-            var usuarioClaim =
-                User.FindFirst(
-                    ClaimTypes.NameIdentifier);
-
+            var usuarioClaim = User.FindFirst(ClaimTypes.NameIdentifier);
 
             if (usuarioClaim == null)
             {
                 return Unauthorized(
-                    "Usuario no autenticado.");
+                    ApiResponse<object>.Error("Usuario no autenticado."));
             }
 
 
-            int idUsuario =
-                int.Parse(usuarioClaim.Value);
+            int idUsuario = int.Parse(usuarioClaim.Value);
 
 
-
-            Venta venta = new Venta
-            {
-                Fecha = DateTime.Now.Date,
-
-                Hora = DateTime.Now.TimeOfDay,
-
-                IdUsuario = idUsuario,
-
-                Detalles = new List<DetalleVenta>()
-            };
+            Venta? ventaCreada = null;
 
 
-            decimal totalVenta = 0;
-
-            decimal gananciaVenta = 0;
+            var strategy = _context.Database.CreateExecutionStrategy();
 
 
-
-            foreach (var item in dto.Productos)
+            try
             {
 
-                if (item.Cantidad <= 0)
+                await strategy.ExecuteAsync(async () =>
                 {
-                    return BadRequest(
-                        "La cantidad debe ser mayor a cero.");
-                }
+
+                    await using var transaction =
+                        await _context.Database.BeginTransactionAsync();
+
+
+                    try
+                    {
+
+                        Venta venta = new Venta
+                        {
+                            Fecha = DateTime.Now.Date,
+                            Hora = DateTime.Now.TimeOfDay,
+                            IdUsuario = idUsuario,
+                            Detalles = new List<DetalleVenta>()
+                        };
+
+
+                        decimal totalVenta = 0;
+                        decimal gananciaVenta = 0;
 
 
 
-                var producto =
-                    await _context.Productos
-                    .FirstOrDefaultAsync(
-                        x => x.IdProducto == item.IdProducto);
+                        foreach (var item in dto.Productos)
+                        {
+
+                            if (item.Cantidad <= 0)
+                            {
+                                throw new Exception(
+                                    "La cantidad debe ser mayor a cero.");
+                            }
 
 
 
-                if (producto == null)
-                {
-                    return BadRequest(
-                        $"No existe el producto con ID {item.IdProducto}.");
-                }
+                            var producto =
+                                await _context.Productos
+                                .FirstOrDefaultAsync(
+                                    p => p.IdProducto == item.IdProducto);
 
 
 
-                // US-06: Validar stock disponible
-                if (producto.StockActual < item.Cantidad)
-                {
-                    return BadRequest(
-                        $"Stock insuficiente para {producto.Nombre}. " +
-                        $"Disponible: {producto.StockActual}");
-                }
+                            if (producto == null)
+                            {
+                                throw new Exception(
+                                    $"No existe el producto {item.IdProducto}");
+                            }
 
 
 
-                decimal subtotal =
-                    producto.PrecioVenta *
-                    item.Cantidad;
+                            if (producto.StockActual < item.Cantidad)
+                            {
+                                throw new Exception(
+                                    $"Stock insuficiente para {producto.Nombre}");
+                            }
 
 
 
-                decimal gananciaProducto =
-                    (producto.PrecioVenta -
-                     producto.PrecioCompra)
-                     *
-                     item.Cantidad;
+                            decimal subtotal =
+                                producto.PrecioVenta * item.Cantidad;
 
 
 
-                totalVenta += subtotal;
+                            decimal ganancia =
+                                (producto.PrecioVenta -
+                                 producto.PrecioCompra)
+                                 * item.Cantidad;
 
-                gananciaVenta += gananciaProducto;
+
+
+                            totalVenta += subtotal;
+                            gananciaVenta += ganancia;
 
 
 
-                // Actualización de stock
-                producto.StockActual -= item.Cantidad;
+                            // Reducir inventario
 
-                _context.MovimientosInventario.Add(
-                new MovimientoInventario
-                {
-                    IdProducto = producto.IdProducto,
+                            int stockAnterior =
+                                producto.StockActual;
 
-                    IdUsuario = idUsuario,
 
-                    TipoMovimiento = "SALIDA",
+                            producto.StockActual -= item.Cantidad;
 
-                    Cantidad = item.Cantidad,
 
-                    Fecha = DateTime.Now,
 
-                    Observacion = "Venta registrada"
+                            // Movimiento inventario
+
+                            _context.MovimientosInventario.Add(
+                                new MovimientoInventario
+                                {
+                                    IdProducto = producto.IdProducto,
+                                    IdUsuario = idUsuario,
+                                    Cantidad = item.Cantidad,
+                                    StockAnterior = stockAnterior,
+                                    StockNuevo = producto.StockActual,
+                                    TipoMovimiento = "SALIDA",
+                                    Fecha = DateTime.Now,
+                                    Observacion =
+                                        "Venta registrada"
+                                });
+
+
+
+                            // Detalle venta
+
+                            venta.Detalles.Add(
+                                new DetalleVenta
+                                {
+                                    IdProducto = producto.IdProducto,
+                                    Cantidad = item.Cantidad,
+                                    PrecioUnitario =
+                                        producto.PrecioVenta,
+                                    Subtotal = subtotal
+                                });
+
+                        }
+
+
+
+                        venta.Total = totalVenta;
+                        venta.Ganancia = gananciaVenta;
+
+
+
+                        _context.Ventas.Add(venta);
+
+
+
+                        await _context.SaveChangesAsync();
+
+
+
+                        await transaction.CommitAsync();
+
+
+
+                        ventaCreada = venta;
+
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+
+
                 });
 
-                venta.Detalles.Add(
-                    new DetalleVenta
+
+
+                return CreatedAtAction(
+                    nameof(GetVenta),
+                    new
                     {
-                        IdProducto =
-                            producto.IdProducto,
+                        id = ventaCreada!.IdVenta
+                    },
+                    new
+                    {
+                        mensaje = "Venta registrada correctamente.",
+                        idVenta = ventaCreada.IdVenta,
+                        total = ventaCreada.Total,
+                        ganancia = ventaCreada.Ganancia
+                    }
+                );
 
-                        Cantidad =
-                            item.Cantidad,
-
-                        PrecioUnitario =
-                            producto.PrecioVenta,
-
-                        Subtotal =
-                            subtotal
-                    });
             }
-
-
-
-            // US-09: Guardar ganancia automática
-            venta.Total = totalVenta;
-
-            venta.Ganancia = gananciaVenta;
-
-
-
-            _context.Ventas.Add(venta);
-
-
-            await _context.SaveChangesAsync();
-
-
-
-            return Ok(new
+            catch (Exception ex)
             {
-                mensaje = "Venta registrada correctamente.",
-
-                idVenta = venta.IdVenta,
-
-                fecha = venta.Fecha,
-
-                hora = venta.Hora,
-
-                total = venta.Total,
-
-                productos = venta.Detalles.Select(x => new
-                {
-                    producto = x.IdProducto,
-                    cantidad = x.Cantidad,
-                    precioUnitario = x.PrecioUnitario,
-                    subtotal = x.Subtotal
-                })
-            });
+                return StatusCode(
+                    500,
+                    ApiResponse<object>.Error(
+                        "Error interno al registrar la venta: "
+                        + ex.Message));
+            }
         }
-
 
 
 
