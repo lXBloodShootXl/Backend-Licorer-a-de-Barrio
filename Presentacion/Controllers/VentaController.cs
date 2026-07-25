@@ -35,7 +35,6 @@ namespace LICORERIA.Presentacion.Controllers
                     ApiResponse<object>.Error("Debe agregar productos a la venta."));
             }
 
-
             var usuarioClaim = User.FindFirst(ClaimTypes.NameIdentifier);
 
             if (usuarioClaim == null)
@@ -44,29 +43,21 @@ namespace LICORERIA.Presentacion.Controllers
                     ApiResponse<object>.Error("Usuario no autenticado."));
             }
 
-
             int idUsuario = int.Parse(usuarioClaim.Value);
-
 
             Venta? ventaCreada = null;
 
-
             var strategy = _context.Database.CreateExecutionStrategy();
-
 
             try
             {
-
                 await strategy.ExecuteAsync(async () =>
                 {
-
                     await using var transaction =
                         await _context.Database.BeginTransactionAsync();
 
-
                     try
                     {
-
                         Venta venta = new Venta
                         {
                             Fecha = DateTime.Now.Date,
@@ -75,29 +66,20 @@ namespace LICORERIA.Presentacion.Controllers
                             Detalles = new List<DetalleVenta>()
                         };
 
-
                         decimal totalVenta = 0;
                         decimal gananciaVenta = 0;
 
-
-
                         foreach (var item in dto.Productos)
                         {
-
                             if (item.Cantidad <= 0)
                             {
                                 throw new Exception(
                                     "La cantidad debe ser mayor a cero.");
                             }
 
-
-
-                            var producto =
-                                await _context.Productos
+                            var producto = await _context.Productos
                                 .FirstOrDefaultAsync(
                                     p => p.IdProducto == item.IdProducto);
-
-
 
                             if (producto == null)
                             {
@@ -105,44 +87,27 @@ namespace LICORERIA.Presentacion.Controllers
                                     $"No existe el producto {item.IdProducto}");
                             }
 
-
-
                             if (producto.StockActual < item.Cantidad)
                             {
                                 throw new Exception(
                                     $"Stock insuficiente para {producto.Nombre}");
                             }
 
-
-
                             decimal subtotal =
                                 producto.PrecioVenta * item.Cantidad;
-
-
 
                             decimal ganancia =
                                 (producto.PrecioVenta -
                                  producto.PrecioCompra)
                                  * item.Cantidad;
 
-
-
                             totalVenta += subtotal;
                             gananciaVenta += ganancia;
-
-
-
-                            // Reducir inventario
 
                             int stockAnterior =
                                 producto.StockActual;
 
-
                             producto.StockActual -= item.Cantidad;
-
-
-
-                            // Movimiento inventario
 
                             _context.MovimientosInventario.Add(
                                 new MovimientoInventario
@@ -154,58 +119,36 @@ namespace LICORERIA.Presentacion.Controllers
                                     StockNuevo = producto.StockActual,
                                     TipoMovimiento = "SALIDA",
                                     Fecha = DateTime.Now,
-                                    Observacion =
-                                        "Venta registrada"
+                                    Observacion = "Venta registrada"
                                 });
-
-
-
-                            // Detalle venta
 
                             venta.Detalles.Add(
                                 new DetalleVenta
                                 {
                                     IdProducto = producto.IdProducto,
                                     Cantidad = item.Cantidad,
-                                    PrecioUnitario =
-                                        producto.PrecioVenta,
+                                    PrecioUnitario = producto.PrecioVenta,
                                     Subtotal = subtotal
                                 });
-
                         }
-
-
 
                         venta.Total = totalVenta;
                         venta.Ganancia = gananciaVenta;
 
-
-
                         _context.Ventas.Add(venta);
-
-
 
                         await _context.SaveChangesAsync();
 
-
-
                         await transaction.CommitAsync();
 
-
-
                         ventaCreada = venta;
-
                     }
                     catch
                     {
                         await transaction.RollbackAsync();
                         throw;
                     }
-
-
                 });
-
-
 
                 return CreatedAtAction(
                     nameof(GetVenta),
@@ -219,9 +162,7 @@ namespace LICORERIA.Presentacion.Controllers
                         idVenta = ventaCreada.IdVenta,
                         total = ventaCreada.Total,
                         ganancia = ventaCreada.Ganancia
-                    }
-                );
-
+                    });
             }
             catch (Exception ex)
             {
@@ -232,8 +173,6 @@ namespace LICORERIA.Presentacion.Controllers
                         + ex.Message));
             }
         }
-
-
 
         /// <summary>
         /// Consulta historial de ventas con filtros.
