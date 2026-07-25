@@ -60,13 +60,12 @@ namespace LICORERIA.Presentacion.Controllers
             await _context.SaveChangesAsync();
 
 
-            return CreatedAtAction(
-                nameof(GetUsuario),
-                new
-                {
-                    id = usuario.IdUsuario
-                },
-                usuario);
+            return Ok(new
+            {
+                usuario.IdUsuario,
+                usuario.Nombre,
+                usuario.UsuarioLogin
+            });
         }
     }
 }
