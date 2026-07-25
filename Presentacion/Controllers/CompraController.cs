@@ -160,57 +160,83 @@ namespace LICORERIA.Presentacion.Controllers
             int idUsuario = int.Parse(usuarioClaim.Value);
 
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
+
             try
             {
-                var compra = new Compra
+                Compra? compraCreada = null;
+
+                await strategy.ExecuteAsync(async () =>
                 {
-                    Fecha = DateTime.Now,
-                    NombreProveedor = request.NombreProveedor,
-                    Total = 0
-                };
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                decimal totalCompra = 0;
-
-                foreach (var item in request.Productos)
-                {
-                    var subtotal = item.Cantidad * item.CostoUnitario;
-                    totalCompra += subtotal;
-
-                    compra.Detalles.Add(new DetalleCompra
+                    try
                     {
-                        IdProducto = item.IdProducto,
-                        Cantidad = item.Cantidad,
-                        CostoUnitario = item.CostoUnitario,
-                        Subtotal = subtotal
-                    });
+                        var compra = new Compra
+                        {
+                            Fecha = DateTime.Now,
+                            NombreProveedor = request.NombreProveedor,
+                            Total = 0
+                        };
 
-                    var productoDb = productosDb.First(p => p.IdProducto == item.IdProducto);
-                    productoDb.StockActual += item.Cantidad;
+                        decimal totalCompra = 0;
 
-                    _context.MovimientosInventario.Add(new MovimientoInventario
+                        foreach (var item in request.Productos)
+                        {
+                            var subtotal = item.Cantidad * item.CostoUnitario;
+                            totalCompra += subtotal;
+
+                            compra.Detalles.Add(new DetalleCompra
+                            {
+                                IdProducto = item.IdProducto,
+                                Cantidad = item.Cantidad,
+                                CostoUnitario = item.CostoUnitario,
+                                Subtotal = subtotal
+                            });
+
+                            var productoDb = productosDb
+                                .First(p => p.IdProducto == item.IdProducto);
+
+                            productoDb.StockActual += item.Cantidad;
+
+                            _context.MovimientosInventario.Add(new MovimientoInventario
+                            {
+                                IdProducto = item.IdProducto,
+                                IdUsuario = idUsuario,
+                                Cantidad = item.Cantidad,
+                                TipoMovimiento = "ENTRADA",
+                                Fecha = DateTime.Now,
+                                Observacion = $"Compra a proveedor: {request.NombreProveedor}"
+                            });
+                        }
+
+                        compra.Total = totalCompra;
+
+                        _context.Compras.Add(compra);
+
+                        await _context.SaveChangesAsync();
+
+                        await transaction.CommitAsync();
+
+                        compraCreada = compra;
+                    }
+                    catch
                     {
-                        IdProducto = item.IdProducto,
-                        IdUsuario = idUsuario,
-                        Cantidad = item.Cantidad,
-                        TipoMovimiento = "ENTRADA",
-                        Fecha = DateTime.Now,
-                        Observacion = $"Compra a proveedor: {request.NombreProveedor}"
-                    });
-                }
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+                });
 
-                compra.Total = totalCompra;
-                _context.Compras.Add(compra);
-                await _context.SaveChangesAsync();
-                
-                await transaction.CommitAsync();
-
-                return CreatedAtAction(nameof(RegistrarCompra), new { id = compra.IdCompra }, compra);
+                return CreatedAtAction(
+                    nameof(RegistrarCompra),
+                    new { id = compraCreada!.IdCompra },
+                    compraCreada
+                );
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                return StatusCode(500, $"Error interno al registrar la compra: {ex.Message}");
+                return StatusCode(500,
+                    $"Error interno al registrar la compra: {ex.Message}");
             }
         }
     }
