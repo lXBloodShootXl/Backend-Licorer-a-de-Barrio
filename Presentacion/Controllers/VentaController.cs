@@ -1,3 +1,4 @@
+
 using LICORERIA.Core.DTOs;
 using LICORERIA.Core.Models;
 using LICORERIA.Infraestructura.Data;
@@ -333,77 +334,108 @@ namespace LICORERIA.Presentacion.Controllers
             }
             int idUsuario = int.Parse(usuarioClaim.Value);
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            IActionResult? resultado = null;
+            var strategy = _context.Database.CreateExecutionStrategy();
+
             try
             {
-                var venta = await _context.Ventas
-                    .Include(v => v.Detalles)
-                    .ThenInclude(d => d.Producto)
-                    .FirstOrDefaultAsync(v => v.IdVenta == id);
-
-                if (venta == null)
+                await strategy.ExecuteAsync(async () =>
                 {
-                    return NotFound("La venta especificada no existe.");
-                }
-
-                foreach (var devolucion in devoluciones)
-                {
-                    if (devolucion.CantidadDevuelta <= 0)
-                        return BadRequest($"La cantidad a devolver del producto {devolucion.IdProducto} debe ser mayor a cero.");
-
-                    var detalle = venta.Detalles.FirstOrDefault(d => d.IdProducto == devolucion.IdProducto);
-                    if (detalle == null)
-                        return BadRequest($"El producto {devolucion.IdProducto} no forma parte de esta venta.");
-
-                    if (devolucion.CantidadDevuelta > detalle.Cantidad)
-                        return BadRequest($"No puede devolver {devolucion.CantidadDevuelta} unidades del producto {devolucion.IdProducto} porque solo se vendieron {detalle.Cantidad}.");
-
-                    // 1. Ajustar el DetalleVenta
-                    detalle.Cantidad -= devolucion.CantidadDevuelta;
-                    
-                    var dineroDevuelto = devolucion.CantidadDevuelta * detalle.PrecioUnitario;
-                    var gananciaDevuelta = devolucion.CantidadDevuelta * (detalle.PrecioUnitario - detalle.Producto.PrecioCompra);
-
-                    detalle.Subtotal -= dineroDevuelto;
-
-                    // 2. Ajustar los totales de Venta
-                    venta.Total -= dineroDevuelto;
-                    venta.Ganancia -= gananciaDevuelta;
-
-                    // 3. Devolver el producto al inventario
-                    detalle.Producto.StockActual += devolucion.CantidadDevuelta;
-
-                    // 4. Registrar Movimiento de Inventario
-                    _context.MovimientosInventario.Add(new MovimientoInventario
+                    await using var transaction = await _context.Database.BeginTransactionAsync();
+                    try
                     {
-                        IdProducto = detalle.IdProducto,
-                        IdUsuario = idUsuario,
-                        Cantidad = devolucion.CantidadDevuelta,
-                        TipoMovimiento = "ENTRADA",
-                        Fecha = DateTime.Now,
-                        Observacion = $"Devolución de cliente - Venta #{venta.IdVenta}"
-                    });
-                }
+                        var venta = await _context.Ventas
+                            .Include(v => v.Detalles)
+                            .ThenInclude(d => d.Producto)
+                            .FirstOrDefaultAsync(v => v.IdVenta == id);
 
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+                        if (venta == null)
+                        {
+                            resultado = NotFound("La venta especificada no existe.");
+                            return;
+                        }
 
-                return Ok(new
-                {
-                    mensaje = "Devolución registrada exitosamente.",
-                    ventaActualizada = new
+                        foreach (var devolucion in devoluciones)
+                        {
+                            if (devolucion.CantidadDevuelta <= 0)
+                            {
+                                resultado = BadRequest($"La cantidad a devolver del producto {devolucion.IdProducto} debe ser mayor a cero.");
+                                return;
+                            }
+
+                            var detalle = venta.Detalles.FirstOrDefault(d => d.IdProducto == devolucion.IdProducto);
+                            if (detalle == null)
+                            {
+                                resultado = BadRequest($"El producto {devolucion.IdProducto} no forma parte de esta venta.");
+                                return;
+                            }
+
+                            if (devolucion.CantidadDevuelta > detalle.Cantidad)
+                            {
+                                resultado = BadRequest($"No puede devolver {devolucion.CantidadDevuelta} unidades del producto {devolucion.IdProducto} porque solo se vendieron {detalle.Cantidad}.");
+                                return;
+                            }
+
+                            // 1. Ajustar el DetalleVenta
+                            detalle.Cantidad -= devolucion.CantidadDevuelta;
+
+                            var dineroDevuelto = devolucion.CantidadDevuelta * detalle.PrecioUnitario;
+                            var gananciaDevuelta = devolucion.CantidadDevuelta * (detalle.PrecioUnitario - detalle.Producto.PrecioCompra);
+
+                            detalle.Subtotal -= dineroDevuelto;
+
+                            // 2. Ajustar los totales de Venta
+                            venta.Total -= dineroDevuelto;
+                            venta.Ganancia -= gananciaDevuelta;
+
+                            // 3. Devolver el producto al inventario
+                            detalle.Producto.StockActual += devolucion.CantidadDevuelta;
+
+                            // 4. Registrar Movimiento de Inventario
+                            _context.MovimientosInventario.Add(new MovimientoInventario
+                            {
+                                IdProducto = detalle.IdProducto,
+                                IdUsuario = idUsuario,
+                                Cantidad = devolucion.CantidadDevuelta,
+                                TipoMovimiento = "ENTRADA",
+                                Fecha = DateTime.Now,
+                                Observacion = $"Devolución de cliente - Venta #{venta.IdVenta}"
+                            });
+                        }
+
+                        if (resultado != null)
+                        {
+                            await transaction.RollbackAsync();
+                            return;
+                        }
+
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        resultado = Ok(new
+                        {
+                            mensaje = "Devolución registrada exitosamente.",
+                            ventaActualizada = new
+                            {
+                                venta.IdVenta,
+                                venta.Total,
+                                venta.Ganancia
+                            }
+                        });
+                    }
+                    catch
                     {
-                        venta.IdVenta,
-                        venta.Total,
-                        venta.Ganancia
+                        await transaction.RollbackAsync();
+                        throw;
                     }
                 });
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
                 return StatusCode(500, $"Error interno al procesar la devolución: {ex.Message}");
             }
+
+            return resultado!;
         }
     }
 }
