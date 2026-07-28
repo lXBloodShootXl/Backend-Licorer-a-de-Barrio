@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using LICORERIA.Infraestructura.Services;
 
 namespace LICORERIA.Presentacion.Controllers
 {
@@ -174,7 +175,7 @@ namespace LICORERIA.Presentacion.Controllers
                     {
                         var compra = new Compra
                         {
-                            Fecha = DateTime.Now,
+                            Fecha = HoraBoliviaHelper.Ahora(),
                             NombreProveedor = request.NombreProveedor,
                             Total = 0
                         };
@@ -205,7 +206,7 @@ namespace LICORERIA.Presentacion.Controllers
                                 IdUsuario = idUsuario,
                                 Cantidad = item.Cantidad,
                                 TipoMovimiento = "ENTRADA",
-                                Fecha = DateTime.Now,
+                                Fecha = HoraBoliviaHelper.Ahora(),
                                 Observacion = $"Compra a proveedor: {request.NombreProveedor}"
                             });
                         }

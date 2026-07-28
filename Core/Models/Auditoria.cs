@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using LICORERIA.Infraestructura.Services;
 
 namespace LICORERIA.Core.Models
 {
@@ -23,7 +24,7 @@ namespace LICORERIA.Core.Models
         // Método solicitado en el diagrama
         public void RegistrarAccion()
         {
-            Fecha = DateTime.Now;
+            Fecha = HoraBoliviaHelper.Ahora();
         }
     }
 }
